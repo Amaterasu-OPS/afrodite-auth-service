@@ -1,14 +1,12 @@
 use actix_web::{App, HttpServer, web};
-use deadpool_redis::Config;
 
 use crate::adapters::api;
+use crate::infra::db::get_db_poll;
+use crate::infra::redis::get_redis_pool;
 
 pub async fn start_app() -> std::io::Result<()> {
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
-    let cfg = Config::from_url(redis_url);
-    let redis_pool = cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).expect("Cannot create Redis pool");
-
-    let redis_pool_data = web::Data::new(redis_pool);
+    let redis_pool_data = web::Data::new(get_redis_pool());
+    let postgres_poll_data = web::Data::new(get_db_poll().await);
 
     HttpServer::new(move || {
         App::new()
@@ -17,6 +15,7 @@ pub async fn start_app() -> std::io::Result<()> {
             .service(api::auth::router::auth_router())
         )
         .app_data(redis_pool_data.clone())
+        .app_data(postgres_poll_data.clone())
     })
     .bind(("0.0.0.0", 8000))?
     .run()

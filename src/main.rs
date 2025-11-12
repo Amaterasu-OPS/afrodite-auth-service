@@ -1,6 +1,8 @@
 mod infra;
 mod adapters;
 mod dto;
+mod application;
+mod domain;
 
 use dotenv::dotenv;
 
