@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use deadpool_redis::redis::{AsyncCommands};
 use sqlx::Error::RowNotFound;
+use crate::adapters::spi::db::postgres_db::PostgresDB;
+use crate::application::spi::db::DBInterface;
 use crate::application::use_cases::use_case::UseCase;
 use crate::domain::oauth_client::OauthClient;
 use crate::dto::auth::par::request::ParRequest;
@@ -8,7 +10,7 @@ use crate::dto::auth::par::response::ParResponse;
 
 pub struct ParUseCase {
     pub redis_pool: Arc<deadpool_redis::Pool>,
-    pub db_pool: Arc<sqlx::Pool<sqlx::Postgres>>
+    pub db_pool: Arc<PostgresDB>
 }
 
 impl UseCase for ParUseCase {
@@ -23,7 +25,7 @@ impl UseCase for ParUseCase {
                 return Err(format!("Error getting client: {}", err));
             }
         };
-        
+
         println!("Got client: {:?}", client);
 
         let exp = 30;
@@ -57,10 +59,10 @@ impl UseCase for ParUseCase {
 
 impl ParUseCase {
     async fn get_client(&self, data: Arc<ParRequest>) -> Result<OauthClient, String> {
-        match sqlx::query_as::<_, OauthClient>("select * from oauth_client where secret = $1 and slug = $2")
-            .bind(data.client_secret.clone())
-            .bind(data.client_id.clone())
-            .fetch_one(&*self.db_pool).await {
+        match self.db_pool.select_one::<OauthClient, _>(
+            "select * from oauth_client where secret = $1 and slug = $2",
+            vec![data.client_secret.clone(), data.client_id.clone()]
+        ).await {
             Ok(e) => Ok(e),
             Err(RowNotFound) => {
                 return Err(String::from("Client not found"));

@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, Responder, Scope, get, post, web};
+use crate::adapters::spi::db::postgres_db::PostgresDB;
 use crate::application::use_cases::auth::par::ParUseCase;
 use crate::application::use_cases::use_case::UseCase;
 use crate::dto::auth::par::{request::ParRequest};
@@ -14,7 +15,7 @@ pub fn auth_router() -> Scope {
 async fn par_handler(
     data: web::Form<ParRequest>,
     redis_pool: web::Data<deadpool_redis::Pool>,
-    db_pool: web::Data<sqlx::Pool<sqlx::Postgres>>,
+    db_pool: web::Data<PostgresDB>,
 ) -> impl Responder {
     let case = ParUseCase {
         redis_pool: redis_pool.into_inner(),

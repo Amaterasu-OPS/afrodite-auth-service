@@ -1,12 +1,14 @@
 use actix_web::{App, HttpServer, web};
-
 use crate::adapters::api;
-use crate::infra::db::get_db_poll;
+use crate::adapters::spi::db::db::DBAdapter;
+use crate::adapters::spi::db::postgres_db::PostgresDB;
 use crate::infra::redis::get_redis_pool;
 
 pub async fn start_app() -> std::io::Result<()> {
+    let psql = DBAdapter::get_db_connection::<PostgresDB>().await.expect("Failed to connect to postgres database");
+    
     let redis_pool_data = web::Data::new(get_redis_pool());
-    let postgres_poll_data = web::Data::new(get_db_poll().await);
+    let postgres_poll_data = web::Data::new(psql);
 
     HttpServer::new(move || {
         App::new()
