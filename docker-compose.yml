@@ -12,6 +12,27 @@ services:
 
   redis:
     image: "redis:7.0-alpine"
-    container_name: auth-redis
+    container_name: auth-service-redis
     ports:
       - "6379:6379"
+
+  db:
+    image: postgres:16
+    container_name: auth-service-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: auth-service-pass
+      POSTGRES_USER: auth-service-user
+      POSTGRES_DB: auth-service-db
+    volumes:
+      - ./storage/db:/var/lib/postgresql/data
+
+  flyway:
+    image: flyway/flyway
+    container_name: auth-service-migrate
+    volumes:
+      - ./migrations:/flyway/sql
+    command: -url=jdbc:postgresql://db:5432/auth-service-db -schemas=public -user=auth-service-user -password=auth-service-pass -connectRetries=60 migrate
+    depends_on:
+      - db

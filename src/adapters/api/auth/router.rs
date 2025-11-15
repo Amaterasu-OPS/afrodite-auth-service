@@ -1,7 +1,9 @@
 use actix_web::{HttpResponse, Responder, Scope, get, post, web};
-use deadpool_redis::redis::AsyncCommands;
-
-use crate::dto::auth::par::{request::ParRequest, response::ParResponse};
+use crate::adapters::api::auth::controllers::par::ParController;
+use crate::adapters::spi::cache::redis::RedisCache;
+use crate::adapters::spi::repositories::oauth_client::OAuthClientRepository;
+use crate::application::api::controller::ControllerInterface;
+use crate::dto::auth::par::{request::ParRequest};
 
 pub fn auth_router() -> Scope {
     web::scope("/auth")
@@ -12,27 +14,22 @@ pub fn auth_router() -> Scope {
 
 #[post("/par")]
 async fn par_handler(
-    data: web::Json<ParRequest>,
-    redis_pool: web::Data<deadpool_redis::Pool>,
+    data: web::Form<ParRequest>,
+    cache: web::Data<RedisCache>,
+    repository: web::Data<OAuthClientRepository>,
 ) -> impl Responder {
-    let exp = 30;
-    let request_uri = String::from("urn:ietf:params:oauth:request_uri:") + &uuid::Uuid::new_v4().to_string();
-    let response = ParResponse {
-        request_uri: request_uri.clone(),
-        expires_in: exp,
-    };
+    let result = ParController {
+        cache: cache.into_inner(),
+        repository: repository.into_inner(),
+    }
+        .handle(data.into_inner())
+        .await;
 
-    let mut conn = redis_pool.get()
-        .await
-        .expect("Cannot get Redis connection from pool");
 
-    let value = serde_json::to_string(&data.into_inner()).unwrap();
-
-    conn.set_ex::<String, String, ()>(request_uri, value, exp)
-        .await
-        .expect("Failed to set value in Redis");
-
-    HttpResponse::Created().json(response)
+    match result {
+        Ok(result) => HttpResponse::Ok().json(result),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
 }
 
 #[get("/authorize")]
